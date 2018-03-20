@@ -25,4 +25,5 @@ dependencies {
     androidTestImplementation 'com.android.support.test:runner:0.5'
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:2.2.2'
     implementation project(':androidlibsvm-release')
+    compile 'com.github.KalebKE:FSensor:v1.1.3'
 }
