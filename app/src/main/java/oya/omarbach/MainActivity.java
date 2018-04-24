@@ -13,6 +13,7 @@ import android.media.SoundPool;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.CountDownTimer;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -21,119 +22,149 @@ import android.hardware.SensorEventListener;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 
+import com.jjoe64.graphview.GraphView;
+import com.jjoe64.graphview.series.DataPoint;
+import com.jjoe64.graphview.series.LineGraphSeries;
 import com.kircherelectronics.fsensor.filter.BaseFilter;
 import com.kircherelectronics.fsensor.filter.averaging.LowPassFilter;
 import com.kircherelectronics.fsensor.filter.averaging.MeanFilter;
+import com.kircherelectronics.fsensor.filter.averaging.MedianFilter;
+import com.kircherelectronics.fsensor.filter.fusion.OrientationComplimentaryFusion;
+import com.kircherelectronics.fsensor.filter.fusion.OrientationFusion;
+import com.kircherelectronics.fsensor.linearacceleration.LinearAcceleration;
+import com.kircherelectronics.fsensor.linearacceleration.LinearAccelerationAveraging;
+import com.kircherelectronics.fsensor.linearacceleration.LinearAccelerationFusion;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Timer;
 import java.util.TimerTask;
 
 public class MainActivity extends Activity implements SensorEventListener {
-    private float [] prev = new float [1030];
-    private float [] filteredAcceleration = new float [3] ;
     private BaseFilter LPfilter = new LowPassFilter();
+    private float timestampOld;
     int flag;
     private String name;
     boolean gyroFinished = false;
     boolean accFinished = false;
     private int i = 0;
     private int j = 0;
-    private float x = 0;
-    private float y = 0;
-    private float z = 0;
+    private double x = 0;
+    private double y = 0;
+    private double z = 0;
     private float gx = 0;
     private float gy = 0;
     private float gz = 0;
     private SensorManager sensorManager;
     private Sensor senAccelerometer;
     private Sensor gyro;
-    private float[] arrayx = new float [1030];
-    private float[] arrayy = new float [10000];
-    private float[] arrayz = new float [10000];
-    private float[] arraygx = new float [10000];
-    private float[] arraygy = new float [10000];
-    private float[] arraygz = new float [10000];private float[] acceleration = new float [3];
+    double[] prev;
+    ArrayList<Double> tmp = new ArrayList<Double>();
+    ArrayList<Double> samples = new ArrayList<Double>();
+    ArrayList<ArrayList<Double>> cycles = new ArrayList<ArrayList<Double>>();
+    private double[] arrayx = new double[5000];
+    private double[] arrayy = new double[5000];
+    private double[] arrayz = new double[5000];
+    int s;
+    double magnitude;
+    ArrayList<Double> AverageCycle = new ArrayList<Double>();
+    double distance;
+    private float[] arraygx = new float[10000];
+    private float[] arraygy = new float[10000];
+    private float[] arraygz = new float[10000];
+    private float[] filteredAcceleration = new float[3];
+    ArrayList<Long> time = new ArrayList<Long>();
+
     @Override
     public void onSensorChanged(SensorEvent sensorEvent) {
 
         Sensor mySensor = sensorEvent.sensor;
 
-        if (mySensor.getType() == Sensor.TYPE_ACCELEROMETER && !accFinished) {
+        if (mySensor.getType() == Sensor.TYPE_LINEAR_ACCELERATION && !accFinished) {
 
+            filteredAcceleration = lowPass(sensorEvent.values.clone(), filteredAcceleration);
+            time.add(sensorEvent.timestamp);
 
-            System.arraycopy(sensorEvent.values, 0, acceleration, 0, sensorEvent.values.length);
-            filteredAcceleration = LPfilter.filter(acceleration);
-//            filteredAcceleration = lowPass(sensorEvent.values.clone(), filteredAcceleration);
-
-
-                x+= filteredAcceleration[0];
-                y+= filteredAcceleration[1];
-                z+= filteredAcceleration[2];
+            magnitude = Math.sqrt(filteredAcceleration[0] * filteredAcceleration[0] + filteredAcceleration[1] * filteredAcceleration[1] + filteredAcceleration[2] * filteredAcceleration[2]);
+            samples.add(magnitude);
 
             arrayx[i] = filteredAcceleration[0];
             arrayy[i] = filteredAcceleration[1];
             arrayz[i] = filteredAcceleration[2];
-
-
             i++;
-                ((TextView) findViewById(R.id.speed)).setText("AX: " + x + "\nAY: " + y + "\nAZ: " + z);
+            ((TextView) findViewById(R.id.speed)).setText("AX: " + x + "\nAY: " + y + "\nAZ: " + z);
 
-            } else if (flag == 0) {  //register
-
-//                super.onPause();
-//                sensorManager.unregisterListener(this);
-//                accFinished = true;
-
-                prev = arrayx;
-
-                x /= i;
-                y /= i;
-                z /= i;
-
-                ((TextView) findViewById(R.id.speed)).setText("AX: " + x + "\nAY: " + y + "\nAZ: " + z);
-
-
-                SharedPreferences sharedPref = getSharedPreferences("mypref", 0);
-                SharedPreferences.Editor editor = sharedPref.edit();
-                editor.putString("name", name);
-                editor.putFloat("x", x);
-                editor.putFloat("y", y);
-                editor.putFloat("z", z);
-                editor.apply();
-                login();
-
-
-            } else if (flag == 1) {  //login
-//                super.onPause();
-//                sensorManager.unregisterListener(this);
-                accFinished = true;
-
-                x /= i;
-                y /= i;
-                z /= i;
-                SharedPreferences sharedPref = getSharedPreferences("mypref", 0);
-                String savedName = sharedPref.getString("name", "");
-                Float xx = sharedPref.getFloat("x", 0);
-                Float yy = sharedPref.getFloat("y", 0);
-                Float zz = sharedPref.getFloat("z", 0);
-
-                double euc = Math.sqrt(Math.pow(xx - x, 2) + Math.pow(yy - y, 2) + Math.pow(zz - z, 2));
-
-                float distance = DTW(prev,arrayx);
-
-                if (name.equals(savedName) && 1 / (1 + euc) > 0.9) {
-                    ((TextView) findViewById(R.id.speed)).setText(""+ distance);
-                } else {
-                    ((TextView) findViewById(R.id.speed)).
-                            setText(""+ distance);
-                }
+        } else if (flag == 0) {  //register
 
             sensorManager.unregisterListener(this);
+            WMAfilter();
+            prev = arrayx.clone();
+            s = i;
+            x /= i;
+            y /= i;
+            z /= i;
+            magnitude = Math.sqrt(x * x + y * y + z * z);
+            ((TextView) findViewById(R.id.speed)).setText("AX: " + x + "\nAY: " + y + "\nAZ: " + z);
 
 
+            SharedPreferences sharedPref = getSharedPreferences("mypref", 0);
+            SharedPreferences.Editor editor = sharedPref.edit();
+            editor.putString("name", name);
+            putDouble(editor, "x", x);
+            putDouble(editor, "y", y);
+            putDouble(editor, "z", z);
+//                editor.putFloat("x", x);
+//                editor.putFloat("y", y);
+//                editor.putFloat("z", z);
+            editor.apply();
+            login();
+
+        } else if (flag == 1) {  //login
+//                super.onPause();
+            sensorManager.unregisterListener(this);
+            WMAfilter();
+            x /= i;
+            y /= i;
+            z /= i;
+            double magnitude1 = Math.sqrt(x * x + y * y + z * z);
+            SharedPreferences sharedPref = getSharedPreferences("mypref", 0);
+            String savedName = sharedPref.getString("name", "");
+            double xx = getDouble(sharedPref, "x", 0);
+            double yy = getDouble(sharedPref, "y", 0);
+            double zz = getDouble(sharedPref, "z", 0);
+//                 Float xx = sharedPref.getFloat("x", 0);
+//                Float yy = sharedPref.getFloat("y", 0);
+//                Float zz = sharedPref.getFloat("z", 0);
+
+            double euc = Math.sqrt(Math.pow(xx - x, 2) + Math.pow(yy - y, 2) + Math.pow(zz - z, 2));
+
+
+            distance = 0;// D(prev, arrayx);
+            /// calculation fo time between samples
+            long times = 0;
+            for (int i = 0; i < time.size() - 1; i++) {
+                times += time.get(i + 1) - time.get(i);
+                System.out.println(time.get(i + 1) - time.get(i));
+            }
+            times /= time.size();
+            System.out.println(times);
+            int i2 = i;
+            int c = estimateCycleLength(samples);
+            if (name.equals(savedName) && 1 / (1 + euc) > 0.9) {
+                ((TextView) findViewById(R.id.speed)).setText("cycleLength" + c + "" + "\n" + i2 + "\n" + s + "\n" + x + "\n" + y + "\n" + z + "\n" + xx + "\n" + yy + "\n" + zz + "\n");
+            } else {
+                ((TextView) findViewById(R.id.speed)).
+                        setText("cycleLength" + c + "" + "\n" + i2 + "\n" + s + "\n" + x + "\n" + y + "\n" + z + "\n" + xx + "\n" + yy + "\n" + zz + "\n");
             }
 
+            GraphView graph = (GraphView) findViewById(R.id.graph);
+            LineGraphSeries<DataPoint> series = new LineGraphSeries<>();
+            for (int i=0;i<samples.size();i++){
+                series.appendData(new DataPoint(i,samples.get(i)),true,samples.size());
+            }
+            graph.addSeries(series);
 
+        }
 
 
 //        if (sensorEvent.sensor.getType() == Sensor.TYPE_GYROSCOPE && !gyroFinished) {
@@ -194,95 +225,81 @@ public class MainActivity extends Activity implements SensorEventListener {
 //                sensorManager.unregisterListener(this);
 //                if(flag == 0)login();
 //            }
-        }
 
-
-
-
-    private void init() {
-        LPfilter.setTimeConstant(0.1f);
     }
 
 
+    private void init() {
 
-    protected float[] lowPass( float[] input, float[] output ) {
+        LPfilter.setTimeConstant(0.18f);
+    }
 
-        float ALPHA = 0.297f/(0.297f+(1/100));
-        if ( output == null ) return input;
-        for ( int i=0; i<input.length; i++ ) {
-            output[i] = output[i] + ALPHA * (input[i] - output[i]);
+
+    protected float[] lowPass(float[] input, float[] output) {
+        float timestamp = System.nanoTime();
+        float timeConstant = 0.297f;
+        float dt = 1 / (i / ((timestamp - timestampOld) / 1000000000.0f));
+        float alpha = timeConstant / (timeConstant + dt);
+        if (output == null) return input;
+        for (int i = 0; i < input.length; i++) {
+            output[i] = alpha * output[i] + (1 - alpha) * input[i];
         }
         return output;
     }
 
-//    public void filter(){
-//        for(int k=2,t=i;t>3;k++) {
-//            arrayx[k] = (arrayx[k - 2] + 2 * arrayx[k - 1] + 3 * arrayx[k] + 2 * arrayx[k + 1] + arrayx[k + 2]) / 9;
-//            arrayy[k] = (arrayy[k - 2] + 2 * arrayy[k - 1] + 3 * arrayy[k] + 2 * arrayy[k + 1] + arrayy[k + 2]) / 9;
-//            arrayz[k] = (arrayz[k - 2] + 2 * arrayz[k - 1] + 3 * arrayz[k] + 2 * arrayz[k + 1] + arrayz[k + 2]) / 9;
-//            t--;
-//        }
-//        for(int h=0,s=i;s!=0 ;h++){
-//            x+=arrayx[h];
-//            y+=arrayy[h];
-//            z+=arrayz[h];
-//            s--;
-//        }
-
-
 
     public double DTWDistance(float[] s, float[] t) {
-        double [][]DTW = new double[s.length][t.length];
+        double[][] DTW = new double[s.length][t.length];
         DTW[0][0] = 0;
 
         for (int i = 1; i < s.length; i++) {
-            DTW[i][0] = Math.abs(s[i]-t[0])+ DTW[i-1][0];
+            DTW[i][0] = Math.abs(s[i] - t[0]) + DTW[i - 1][0];
         }
         for (int i = 1; i < t.length; i++) {
-            DTW[0][i] = Math.abs(s[0]-t[i])+ DTW[0][i-1];
+            DTW[0][i] = Math.abs(s[0] - t[i]) + DTW[0][i - 1];
         }
-        for(int i = 1;i<s.length;i++) {
-            for(int j = 1;j<t.length;j++) {
+        for (int i = 1; i < s.length; i++) {
+            for (int j = 1; j < t.length; j++) {
                 double cost = Math.abs(s[i] - t[j]);
-                DTW[i][j] = cost + Math.min(DTW[i-1][j], Math.min(DTW[i][j-1], DTW[i-1][j-1]));
+                DTW[i][j] = cost + Math.min(DTW[i - 1][j], Math.min(DTW[i][j - 1], DTW[i - 1][j - 1]));
             }
         }
-            float sum = 0;
-            int i=0;
-            int j=0;
-            double min;
+        float sum = 0;
+        int i = 0;
+        int j = 0;
+        double min;
 
 
-        while (i!=s.length-1 && j!=t.length-1){
-            if( i == s.length-1){
-                while (j!=t.length-1){
+        while (i != s.length - 1 && j != t.length - 1) {
+            if (i == s.length - 1) {
+                while (j != t.length - 1) {
                     j++;
-                    sum+=DTW[i][j];
+                    sum += DTW[i][j];
                 }
                 return sum;
-            }else if(j==t.length-1){
-                while(i!=s.length-1){
+            } else if (j == t.length - 1) {
+                while (i != s.length - 1) {
                     i++;
-                    sum+=DTW[i][j];
+                    sum += DTW[i][j];
                 }
                 return sum;
 
             }
-            if(DTW[i+1][j+1]<DTW[i+1][j] && DTW[i+1][j+1]<DTW[i][j+1]){
-                min = DTW[i+1][j+1];
-                i+=1;
-                j+=1;
+            if (DTW[i + 1][j + 1] < DTW[i + 1][j] && DTW[i + 1][j + 1] < DTW[i][j + 1]) {
+                min = DTW[i + 1][j + 1];
+                i += 1;
+                j += 1;
 
-            }else if(DTW[i+1][j]<DTW[i][j+1] && DTW[i+1][j]<DTW[i+1][j+1]){
-                min= DTW[i+1][j];
-                i+=1;
-            }else{
+            } else if (DTW[i + 1][j] < DTW[i][j + 1] && DTW[i + 1][j] < DTW[i + 1][j + 1]) {
+                min = DTW[i + 1][j];
+                i += 1;
+            } else {
 
-                min= DTW[i][j+1];
-                j+=1;
+                min = DTW[i][j + 1];
+                j += 1;
             }
 
-                sum+=min;
+            sum += min;
 
 
         }
@@ -290,79 +307,275 @@ public class MainActivity extends Activity implements SensorEventListener {
     }
 
 
+    public static double DTW(double[] x1, double[] x2) {
+        int n1 = x1.length;
+        int n2 = x2.length;
+        double[][] table = new double[2][n2 + 1];
 
+        table[0][0] = 0;
 
-
-
-
-
-    public static float DTW(float [] ss, float [] tt) {
-        float[] array1 = ss;
-        float[] array2 = tt;
-        float[][] dtw = new float[array1.length][array2.length];
-        dtw[0][0] = 0;
-        for (int i = 1; i < array1.length; i++) {
-            dtw[i][0] = Math.abs(array1[i]-array2[0]) + dtw[i-1][0];
+        for (int i = 1; i <= n2; i++) {
+            table[0][i] = Double.POSITIVE_INFINITY;
         }
-        for (int i = 1; i < array2.length; i++) {
-            dtw[0][i] = Math.abs(array2[i]-array1[0]) + dtw[0][i-1];
+
+        for (int i = 1; i <= n1; i++) {
+            table[1][0] = Double.POSITIVE_INFINITY;
+
+            for (int j = 1; j <= n2; j++) {
+                double cost = Math.abs(x1[i - 1] - x2[j - 1]);
+
+                double min = table[0][j - 1];
+
+                if (min > table[0][j]) {
+                    min = table[0][j];
+                }
+
+                if (min > table[1][j - 1]) {
+                    min = table[1][j - 1];
+                }
+
+                table[1][j] = cost + min;
+            }
+
+            double[] swap = table[0];
+            table[0] = table[1];
+            table[1] = swap;
+        }
+
+        return table[0][n2];
+    }
+
+    public SharedPreferences.Editor putDouble(final SharedPreferences.Editor edit, final String key, final double value) {
+        return edit.putLong(key, Double.doubleToRawLongBits(value));
+    }
+
+    public double getDouble(final SharedPreferences prefs, final String key, final double defaultValue) {
+        return Double.longBitsToDouble(prefs.getLong(key, Double.doubleToLongBits(defaultValue)));
+    }
+
+
+    public ArrayList<Double> Average(ArrayList<Double> a1, ArrayList<Double> a2) {
+        ArrayList<Double> temp = new ArrayList<Double>();
+        int length = a1.size() > a2.size() ? a2.size() : a1.size();
+        for (int i = 0; i < length; i++) {
+            temp.add((a1.get(i) + a2.get(i)) / 2);
+        }
+        return temp;
+    }
+
+
+    public double D(ArrayList<Double> array1, ArrayList<Double> array2) {
+        double[][] dtw = new double[array1.size()][array2.size()];
+        dtw[0][0] = 0;
+        for (int i = 1; i < array1.size(); i++) {
+            dtw[i][0] = Math.abs(array1.get(i) - array2.get(0)) + dtw[i - 1][0];
+        }
+        for (int i = 1; i < array2.size(); i++) {
+            dtw[0][i] = Math.abs(array2.get(i) - array1.get(0)) + dtw[0][i - 1];
         }
 
         for (int i = 1; i < dtw.length; i++) {
             for (int j = 1; j < dtw[i].length; j++) {
-                dtw[i][j] = Math.abs(array1[i] - array2[j]) + Math.min(dtw[i-1][j-1], Math.min(dtw[i-1][j], dtw[i][j-1]));
+                dtw[i][j] = Math.abs(array1.get(i) - array2.get(0)) + Math.min(dtw[i - 1][j - 1], Math.min(dtw[i - 1][j], dtw[i][j - 1]));
             }
         }
-        int i = dtw.length-1,
-                j = dtw[0].length-1;
-        float sum = dtw[i][j];
-        System.out.println("Sum is "+sum);
-        while(i > 0 && j > 0) {
-            float min = Math.min(dtw[i-1][j-1], Math.min(dtw[i][j-1], dtw[i-1][j]));
-            sum+= min;
-            System.out.println("Min is "+min);
-            if(min==dtw[i-1][j-1]) {i--;j--;}
-            else if(min==dtw[i][j-1]) {j--;}
-            else if(min==dtw[i-1][j]) {i--;}
+        int i = dtw.length - 1,
+                j = dtw[0].length - 1;
+        double sum = dtw[i][j];
+        while (i > 0 && j > 0) {
+            double min = Math.min(dtw[i - 1][j - 1], Math.min(dtw[i][j - 1], dtw[i - 1][j]));
+
+            sum += min;
+            if (min == dtw[i - 1][j - 1]) {
+                i--;
+                j--;
+            } else if (min == dtw[i][j - 1]) {
+                j--;
+            } else if (min == dtw[i - 1][j]) {
+                i--;
+            }
         }
-        if(i==0)
-            while(j>0) {
-                sum+=dtw[0][j];
+        if (i == 0)
+            while (j > 0) {
+                sum += dtw[0][j];
                 j--;
             }
         else
-            while(i>0) {
-                sum+=dtw[i][0];
+            while (i > 0) {
+                sum += dtw[i][0];
                 i--;
             }
 
-        return  sum;
+        return sum;
+    }
+
+    //          cycle length estimation and step detection
+// estimation of cycle length
+    public int estimateCycleLength(ArrayList<Double> samples) {
+        int diff = 20; //window size
+        ArrayList<Double> score = new ArrayList<Double>();  //for absolute distance between windows
+        ArrayList<Double> baseline = new ArrayList<Double>();
+        ArrayList<Integer> minimas = new ArrayList<Integer>();  //indices of the locaal minimas of the score array
+        ArrayList<Integer> differences = new ArrayList<Integer>();
+        //get baseline
+        for (int i = (samples.size() / 2) - (diff / 2); i < (samples.size() / 2) + (diff / 2); i++) {
+            baseline.add(samples.get(i));
+        }
+        //compute absolute distance
+        for (int i = 1; i < ((samples.size() / 2) - (diff / 2)) / diff; i++) {
+            score.add(getAbsoluteDistance(true, i, baseline, samples, diff));
+        }
+        for (int i = 1; i < ((samples.size() / 2) - (diff / 2)) / diff; i++) {
+            score.add(getAbsoluteDistance(false, i, baseline, samples, diff));
+        }
+
+        //compute local minimas
+        for (int i = 2; i < score.size() - 2; i++) {
+            if (score.get(i) < score.get(i + 1)   && score.get(i) < score.get(i + 2) &&   score.get(i) < score.get(i - 1)
+                    &&   score.get(i) < score.get(i - 2))
+                minimas.add(i);
+        }
+
+        //difference between adjacent elements
+
+            for (i = 0; i < minimas.size()-1; i += 2) {
+                differences.add(Math.abs(minimas.get(i) - minimas.get(i + 1)));
+            }
+
+        //mode
+        return diff*getMode(differences);
+
+
+    }
+
+    public static double getAbsoluteDistance(boolean forwards, int nth, ArrayList<Double> baseline, ArrayList<Double> samples, int diff) {
+        //To check whether we're moving forwards or backwards with the samples
+        double sum = 0;
+        if (forwards) {
+            //if moving forward
+            int currentStartingIndex = (samples.size() / 2) + (diff / 2) * nth;
+            for (int i = 0; i < diff; i++) {
+                sum += Math.abs((baseline.get(i) - samples.get(currentStartingIndex + i)));
+            }
+        } else {
+            //if moving backward
+            int currentStartingIndex = (samples.size() / 2) - diff * nth;
+            for (int i = 0; i < diff; i++) {
+                sum += Math.abs((baseline.get(i) - samples.get(currentStartingIndex + i)));
+            }
+        }
+
+        return sum;
+    }
+
+
+    public static int getMode(ArrayList<Integer> differences) {
+        int mode = 0;
+        int maxCount = 0;
+        for (int i = 0; i < differences.size(); i++) {
+            int count = 0;
+            for (int j = 0; j < differences.size(); j++) {
+                if (differences.get(i) == differences.get(j))
+                    count++;
+            }
+            if (count > maxCount) {
+                maxCount = count;
+                mode = differences.get(i);
+            }
+        }
+        if (maxCount > 1) {
+            return mode;
+        }
+        int avg=0;
+        for(int i=0;i < differences.size();i++){
+            avg+=differences.get(i);
+        }
+        avg/=differences.size();
+        return avg;
     }
 
 
 
-
-
-
-
-
-
-
-
-
-
-    public void Gfilter(){
-        for(int j=2;j<998;j++) {
-            arraygx[j] = (arraygx[j - 2] + 2 * arraygx[j - 1] + 3 * arraygx[j] + 2 * arraygx[j + 1] + arraygx[j + 2]) / 9;
-            arraygy[j] = (arraygy[j - 2] + 2 * arraygy[j - 1] + 3 * arraygy[j] + 2 * arraygy[j + 1] + arraygy[j + 2]) / 9;
-            arraygz[j] = (arraygz[j - 2] + 2 * arraygz[j - 1] + 3 * arraygz[j] + 2 * arraygz[j + 1] + arraygz[j + 2]) / 9;
+// start points of cycles
+    public ArrayList<Integer> cycleStarts(ArrayList<Double> samples){
+        double offset = 0.2;
+        int length = estimateCycleLength(samples);
+        int start = minAtCenter(samples,length);
+        ArrayList<Integer> indices = new ArrayList<Integer>();
+        indices.add(start);
+        double min = 0;
+        int index=0;
+        for(int i=0;i<((samples.size()/2)/length)-length;i++){
+            start-=length;
+            index=start;
+            min=samples.get(index);
+            for(int j= (int)(start-offset*length);j<start+offset*length;j++){
+                if (samples.get(j)<min){
+                    min=samples.get(j);
+                    index=j;
+                }
+            }
+            start=index;
+            indices.add(index);
         }
-        for(int h=0;h<1000;h++){
-            gx+=arraygx[h];
-            gy+=arraygy[h];
-            gz+=arraygz[h];
-        }
 
+        Collections.reverse(indices);
+        start = minAtCenter(samples,length);
+        for(int i=0;i<((samples.size()/2)/length)-length;i++){
+            start+=length;
+            index=start;
+            min=samples.get(index);
+            for(int j= (int)(start-offset*length);j<start+offset*length;j++){
+                if (samples.get(j)<min){
+                    min=samples.get(j);
+                     index=j;
+                }
+            }
+            start=index;
+            indices.add(index);
+        }
+        return indices;
+}
+
+ public int minAtCenter(ArrayList<Double> samples,int length){
+        double min = 0;
+        int index=0;
+     for(int i = (samples.size()/2)-length;i<(samples.size()/2)+length;i++){
+            if (samples.get(i)<min){
+                index = i;
+                min = samples.get(i);
+     }
+        }
+        return index;
+ }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    public void WMAfilter(){
+//        for(int j=2;j<i-4;j++) {
+//            arrayx[j] = (arrayx[j - 2] + 2 * arrayx[j - 1] + 3 * arrayx[j] + 2 * arrayx[j + 1] + arrayx[j + 2]) / 9;
+//            arrayy[j] = (arrayy[j - 2] + 2 * arrayy[j - 1] + 3 * arrayy[j] + 2 * arrayy[j + 1] + arrayy[j + 2]) / 9;
+//            arrayz[j] = (arrayz[j - 2] + 2 * arrayz[j - 1] + 3 * arrayz[j] + 2 * arrayz[j + 1] + arrayz[j + 2]) / 9;
+//        }
+        for (int i =0;i<arrayx.length-1;i++){
+            x+=arrayx[i];
+            y+=arrayy[i];
+            z+=arrayz[i];
+        }
 
     }
 
@@ -376,7 +589,8 @@ public class MainActivity extends Activity implements SensorEventListener {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
+        sensorManager   = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+        senAccelerometer= sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
 //        final Button butt = findViewById(R.id.button);
 //        butt.setOnClickListener(new View.OnClickListener() {
 //            public void onClick(View v) {
@@ -414,8 +628,12 @@ public class MainActivity extends Activity implements SensorEventListener {
 
 
     private void register() {
+            time = new ArrayList<Long>();
+            samples = new ArrayList<Double>();
+            AverageCycle = new ArrayList<Double>();
             gyroFinished=false;
             accFinished=false;
+            filteredAcceleration = new float [3];
             x = 0;
             y = 0;
             z = 0;
@@ -425,8 +643,7 @@ public class MainActivity extends Activity implements SensorEventListener {
             gz=0;
             j=0;
             flag = 0;
-            float [] filteredAcceleration = new float [3] ;
-            EditText edittext = (EditText) findViewById(R.id.name);
+            EditText edittext = findViewById(R.id.name);
             String s = edittext.getText().toString();
             name = s;
             ((EditText) findViewById(R.id.name)).setText("");
@@ -443,7 +660,7 @@ public class MainActivity extends Activity implements SensorEventListener {
                 public void run() {
                     super.run();
                     try {
-                        this.sleep(10000);
+                        sleep(10000);
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
@@ -456,9 +673,8 @@ public class MainActivity extends Activity implements SensorEventListener {
 //            senAccelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
 //            sensorManager.registerListener(this, senAccelerometer, SensorManager.SENSOR_DELAY_FASTEST);
 //            gyro = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
-            sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
-            senAccelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-            sensorManager.registerListener(this, senAccelerometer, SensorManager.SENSOR_DELAY_FASTEST);
+             timestampOld =  System.nanoTime();
+            sensorManager.registerListener(this, senAccelerometer, sensorManager.SENSOR_DELAY_FASTEST);
 //            gyro = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
 //            sensorManager.registerListener(this, gyro, SensorManager.SENSOR_DELAY_FASTEST);
 
@@ -470,9 +686,12 @@ public class MainActivity extends Activity implements SensorEventListener {
 
 
     private void login(){
-
+        time = new ArrayList<Long>();
+        samples = new ArrayList<Double>();
+        AverageCycle = new ArrayList<Double>();
         accFinished=false;
         gyroFinished=false;
+        filteredAcceleration = new float [3];
         x = 0;
         y = 0;
         z = 0;
@@ -481,25 +700,29 @@ public class MainActivity extends Activity implements SensorEventListener {
         gy=0;
         gz=0;
         j=0;
+        filteredAcceleration = new float [3];
+          arrayx = new double [5000];
+          arrayy = new double [5000];
+          arrayz = new double [5000];
         float [] filteredAcceleration = new float [3] ;
         flag=1;
-        EditText edittext = (EditText) findViewById(R.id.name);
+        EditText edittext = findViewById(R.id.name);
         String s = edittext.getText().toString();
         name = s;
         ((EditText) findViewById(R.id.name)).setText("");
-//       try {
-//            //sleep 2 seconds
-//            Thread.sleep(3000);
-//        } catch (InterruptedException e) {
-//            e.printStackTrace();
-//        }
+       try {
+            //sleep 2 seconds
+            Thread.sleep(3000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
 
         new Thread(){
             @Override
             public void run() {
                 super.run();
                 try {
-                    this.sleep(10000);
+                    sleep(10000);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
@@ -508,10 +731,8 @@ public class MainActivity extends Activity implements SensorEventListener {
             }
 
         }.start();
-
-        sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
-        senAccelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-        sensorManager.registerListener(this, senAccelerometer, SensorManager.SENSOR_DELAY_FASTEST);
+        timestampOld =  System.nanoTime();
+        sensorManager.registerListener(this, senAccelerometer, sensorManager.SENSOR_DELAY_FASTEST);
 //        gyro = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
 //        sensorManager.registerListener(this, gyro, SensorManager.SENSOR_DELAY_FASTEST);
 
@@ -527,17 +748,17 @@ public class MainActivity extends Activity implements SensorEventListener {
 
     }
 
-//    protected void onPause(Bundle savedInstanceState) {
-//        super.onPause();
-//        sensorManager.unregisterListener(this);
-//
-//
-//    }
+    protected void onPause(Bundle savedInstanceState) {
+        super.onPause();
+        sensorManager.unregisterListener(this);
+
+
+    }
 
     protected void onResume(Bundle savedInstanceState) {
         super.onResume();
         sensorManager.registerListener(this, senAccelerometer, SensorManager.SENSOR_DELAY_FASTEST);
-        sensorManager.registerListener(this, gyro, SensorManager.SENSOR_DELAY_FASTEST);
+    //    sensorManager.registerListener(this, gyro, SensorManager.SENSOR_DELAY_FASTEST);
     }
 
 }

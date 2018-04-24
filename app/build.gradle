@@ -26,4 +26,12 @@ dependencies {
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:2.2.2'
     implementation project(':androidlibsvm-release')
     compile 'com.github.KalebKE:FSensor:v1.1.3'
+    compile 'com.jjoe64:graphview:4.2.1'
+
+}
+
+configurations.all {
+    resolutionStrategy {
+        force 'com.android.support:support-annotations:23.1.1'
+    }
 }
