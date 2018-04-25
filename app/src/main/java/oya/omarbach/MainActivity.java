@@ -36,6 +36,7 @@ import com.kircherelectronics.fsensor.linearacceleration.LinearAccelerationAvera
 import com.kircherelectronics.fsensor.linearacceleration.LinearAccelerationFusion;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -307,7 +308,9 @@ public class MainActivity extends Activity implements SensorEventListener {
     }
 
 
-    public static double DTW(double[] x1, double[] x2) {
+    public static double DTW(ArrayList<Double> _x1, ArrayList<Double> _x2) {
+        Double[] x1 = _x1.toArray(new Double[_x1.size()])
+        , x2= _x2.toArray(new Double[_x2.size()]);
         int n1 = x1.length;
         int n2 = x2.length;
         double[][] table = new double[2][n2 + 1];
@@ -492,6 +495,46 @@ public class MainActivity extends Activity implements SensorEventListener {
         }
         avg/=differences.size();
         return avg;
+    }
+
+    public double average(ArrayList<Double> doubles){
+        double sum = 0;
+        for(double d : doubles)
+            sum+=d;
+        return sum/doubles.size();
+    }
+
+    public ArrayList<Integer> removeFromSamples(ArrayList<Double> samples, ArrayList<Integer> indices, ArrayList<Double> averages, double average){
+        ArrayList<Integer> removedIndices = new ArrayList<Integer>();
+        for(int i=0;i<indices.size();i++){
+            if(averages.get(i)<average*0.85 || averages.get(i)>average*1.15){
+                removedIndices.add(i);
+            }
+        }
+        return removedIndices;
+    }
+
+    public ArrayList<Double> skipIrregularCycles(ArrayList<Double> samples, ArrayList<Integer> indices){
+        ArrayList<Double> newSample = new ArrayList<Double>();
+        ArrayList<Double> averages = new ArrayList<Double>();
+        for(int index : indices){
+            ArrayList<Double> window0 = new ArrayList<Double>(samples.subList(index, indices.get(indices.indexOf(index)+1)));
+            ArrayList<Double> differences = new ArrayList<Double>();
+            for(int _index : indices){
+                //We don't want to compare it to itself XDDDDDDDD
+                if(_index==index)break;
+                else{
+                    ArrayList<Double> window1 = new ArrayList<Double>(samples.subList(_index, indices.get(indices.indexOf(_index)+1)));
+                    differences.add(DTW(window0, window1));
+                }
+            }
+            averages.add(average(differences));
+        }
+        double diffAverage = average(averages);
+        //This function returns all the indices which are to be ommitted from further calculations
+        ArrayList<Integer> removedFromSamples = removeFromSamples(samples, indices, averages, diffAverage);
+
+        return null;
     }
 
 
