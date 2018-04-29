@@ -307,42 +307,55 @@ public class MainActivity extends Activity implements SensorEventListener {
     }
 
 
-    public static double DTW(double[] x1, double[] x2) {
-        int n1 = x1.length;
-        int n2 = x2.length;
-        double[][] table = new double[2][n2 + 1];
-
-        table[0][0] = 0;
-
-        for (int i = 1; i <= n2; i++) {
-            table[0][i] = Double.POSITIVE_INFINITY;
+    public static double DTW(ArrayList<Double> template,ArrayList<Double> sample) {
+        Double[] s = template.toArray(new Double[template.size()])
+                , t= sample.toArray(new Double[sample.size()]);
+        double[][] DTW = new double[s.length][t.length];
+        DTW[0][0] = 0;
+        for (int i = 1; i < s.length; i++) {
+            DTW[i][0] = Math.abs(s[i] - t[0]) + DTW[i - 1][0];
         }
-
-        for (int i = 1; i <= n1; i++) {
-            table[1][0] = Double.POSITIVE_INFINITY;
-
-            for (int j = 1; j <= n2; j++) {
-                double cost = Math.abs(x1[i - 1] - x2[j - 1]);
-
-                double min = table[0][j - 1];
-
-                if (min > table[0][j]) {
-                    min = table[0][j];
-                }
-
-                if (min > table[1][j - 1]) {
-                    min = table[1][j - 1];
-                }
-
-                table[1][j] = cost + min;
+        for (int i = 1; i < t.length; i++) {
+            DTW[0][i] = Math.abs(s[0] - t[i]) + DTW[0][i - 1];
+        }
+        for (int i = 1; i < s.length; i++) {
+            for (int j = 1; j < t.length; j++) {
+                double cost = Math.abs(s[i] - t[j]);
+                DTW[i][j] = cost + Math.min(DTW[i - 1][j], Math.min(DTW[i][j - 1], DTW[i - 1][j - 1]));
             }
-
-            double[] swap = table[0];
-            table[0] = table[1];
-            table[1] = swap;
         }
-
-        return table[0][n2];
+        double sum = DTW[s.length-1][t.length-1];
+        int i = s.length - 1;
+        int j = t.length - 1;
+        double min;
+        while (i > 0 && j > 0) {
+            if (DTW[i - 1][j - 1] < DTW[i - 1][j] && DTW[i - 1][j - 1] < DTW[i][j - 1]) {
+                min = DTW[i - 1][j - 1];
+                i --;
+                j --;
+            } else if (DTW[i - 1][j] < DTW[i][j - 1] && DTW[i - 1][j] < DTW[i - 1][j - 1]) {
+                min = DTW[i - 1][j];
+                i -- ;
+            } else {
+                min = DTW[i][j - 1];
+                j --;
+            }
+            sum += min;
+        }
+        if (i == 0) {
+            while (j != 0) {
+                j--;
+                sum += DTW[i][j];
+            }
+            return sum;
+        } else if (j == 0) {
+            while (i != 0) {
+                i--;
+                sum += DTW[i][j];
+            }
+            return sum;
+        }
+        return sum;
     }
 
     public SharedPreferences.Editor putDouble(final SharedPreferences.Editor edit, final String key, final double value) {
@@ -354,14 +367,14 @@ public class MainActivity extends Activity implements SensorEventListener {
     }
 
 
-    public ArrayList<Double> Average(ArrayList<Double> a1, ArrayList<Double> a2) {
-        ArrayList<Double> temp = new ArrayList<Double>();
-        int length = a1.size() > a2.size() ? a2.size() : a1.size();
-        for (int i = 0; i < length; i++) {
-            temp.add((a1.get(i) + a2.get(i)) / 2);
-        }
-        return temp;
-    }
+//    public ArrayList<Double> Average(ArrayList<Double> a1, ArrayList<Double> a2) {
+//        ArrayList<Double> temp = new ArrayList<Double>();
+//        int length = a1.size() > a2.size() ? a2.size() : a1.size();
+//        for (int i = 0; i < length; i++) {
+//            temp.add((a1.get(i) + a2.get(i)) / 2);
+//        }
+//        return temp;
+//    }
 
 
     public double D(ArrayList<Double> array1, ArrayList<Double> array2) {
@@ -550,7 +563,63 @@ public class MainActivity extends Activity implements SensorEventListener {
  }
 
 
+// remove unusual cycles
+public ArrayList<Integer> skipIrregularCycles(ArrayList<Double> samples, ArrayList<Integer> indices){
+    ArrayList<Double> newSamples = new ArrayList<Double>();
+    ArrayList<Double> averages = distances (samples,indices);
+    double diffAverage = average(averages);
+    //This function returns all the indices which are to be ommitted from further calculations
+    newSamples = removeFromSamples(samples, indices, averages, diffAverage);
+    indices = cycleStarts(newSamples);
 
+    return indices;
+}
+
+    public ArrayList<Double> distances(ArrayList<Double> samples, ArrayList<Integer> indices){
+        ArrayList<Double> averages = new ArrayList<Double>();
+        for(int index : indices){
+            ArrayList<Double> window0 = new ArrayList<Double>(samples.subList(index, indices.get(indices.indexOf(index)+1)));
+            ArrayList<Double> differences = new ArrayList<Double>();
+            for(int _index : indices){
+                //We don't want to compare it to itself
+                if(_index==index)break;
+                else{
+                    ArrayList<Double> window1 = new ArrayList<Double>(samples.subList(_index, indices.get(indices.indexOf(_index)+1)));
+                    differences.add(DTW(window0, window1));
+                }
+            }
+            averages.add(average(differences));
+        }
+      return averages;
+    }
+
+
+
+    public double average(ArrayList<Double> doubles){
+        double sum = 0;
+        for(double d : doubles)
+            sum+=d;
+        return sum/doubles.size();
+    }
+
+    public ArrayList<Double> removeFromSamples(ArrayList<Double> samples, ArrayList<Integer> indices, ArrayList<Double> averages, double average){
+        ArrayList<Integer> removedIndices = new ArrayList<Integer>();
+        ArrayList<Integer> list = new ArrayList<Integer>();
+        for(int i=0;i<indices.size();i++){
+            if(averages.get(i)<average*0.85 || averages.get(i)>average*1.15){
+                removedIndices.add(i);
+            }
+        }
+        for(int i=0;i<removedIndices.size();i++){
+            for(int j=indices.get(removedIndices.get(i));j<indices.get(removedIndices.get(i)+1);j++){
+                list.add(j);
+            }
+        }
+        Collections.sort(list,Collections.reverseOrder());
+        for(int i : list)
+            samples.remove(i);
+        return samples;
+    }
 
 
 
