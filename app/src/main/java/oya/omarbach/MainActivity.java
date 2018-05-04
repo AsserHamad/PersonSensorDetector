@@ -22,6 +22,8 @@ import android.hardware.SensorEventListener;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.jjoe64.graphview.GraphView;
 import com.jjoe64.graphview.series.DataPoint;
 import com.jjoe64.graphview.series.LineGraphSeries;
@@ -35,6 +37,7 @@ import com.kircherelectronics.fsensor.linearacceleration.LinearAcceleration;
 import com.kircherelectronics.fsensor.linearacceleration.LinearAccelerationAveraging;
 import com.kircherelectronics.fsensor.linearacceleration.LinearAccelerationFusion;
 
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Timer;
@@ -84,10 +87,8 @@ public class MainActivity extends Activity implements SensorEventListener {
 
             filteredAcceleration = lowPass(sensorEvent.values.clone(), filteredAcceleration);
             time.add(sensorEvent.timestamp);
-
             magnitude = Math.sqrt(filteredAcceleration[0] * filteredAcceleration[0] + filteredAcceleration[1] * filteredAcceleration[1] + filteredAcceleration[2] * filteredAcceleration[2]);
             samples.add(magnitude);
-
             arrayx[i] = filteredAcceleration[0];
             arrayy[i] = filteredAcceleration[1];
             arrayz[i] = filteredAcceleration[2];
@@ -95,29 +96,28 @@ public class MainActivity extends Activity implements SensorEventListener {
             ((TextView) findViewById(R.id.speed)).setText("AX: " + x + "\nAY: " + y + "\nAZ: " + z);
 
         } else if (flag == 0) {  //register
-
             sensorManager.unregisterListener(this);
-            WMAfilter();
-            prev = arrayx.clone();
             s = i;
-            x /= i;
-            y /= i;
-            z /= i;
-            magnitude = Math.sqrt(x * x + y * y + z * z);
-            ((TextView) findViewById(R.id.speed)).setText("AX: " + x + "\nAY: " + y + "\nAZ: " + z);
-
-
+//            x /= i;
+//            y /= i;
+//            z /= i;
+//            System.out.println("starts indices: "+cycleStarts(samples));
+            ArrayList<Double> newSamples = skipIrregularCycles(samples,cycleStarts(samples));
+            double templateDistance = average(distances(newSamples,cycleStarts(newSamples)));
+            ArrayList<Double> Template = cycle(newSamples,cycleStarts(newSamples));
+            ((TextView) findViewById(R.id.speed)).setText("registered");
             SharedPreferences sharedPref = getSharedPreferences("mypref", 0);
             SharedPreferences.Editor editor = sharedPref.edit();
             editor.putString("name", name);
-            putDouble(editor, "x", x);
-            putDouble(editor, "y", y);
-            putDouble(editor, "z", z);
-//                editor.putFloat("x", x);
-//                editor.putFloat("y", y);
-//                editor.putFloat("z", z);
+             putDouble(editor,"DTW",templateDistance);
+                Gson gson = new Gson();
+                String json = gson.toJson(Template);
+               editor.putString("Template", json);
+//            putDouble(editor, "x", x);
+//            putDouble(editor, "y", y);
+//            putDouble(editor, "z", z);
             editor.apply();
-            login();
+
 
         } else if (flag == 1) {  //login
 //                super.onPause();
@@ -126,35 +126,43 @@ public class MainActivity extends Activity implements SensorEventListener {
             x /= i;
             y /= i;
             z /= i;
-            double magnitude1 = Math.sqrt(x * x + y * y + z * z);
+            ArrayList<Double> newSamples = skipIrregularCycles(samples,cycleStarts(samples));
+            ArrayList<Double> template = cycle(newSamples,cycleStarts(newSamples));
+
             SharedPreferences sharedPref = getSharedPreferences("mypref", 0);
             String savedName = sharedPref.getString("name", "");
-            double xx = getDouble(sharedPref, "x", 0);
-            double yy = getDouble(sharedPref, "y", 0);
-            double zz = getDouble(sharedPref, "z", 0);
-//                 Float xx = sharedPref.getFloat("x", 0);
-//                Float yy = sharedPref.getFloat("y", 0);
-//                Float zz = sharedPref.getFloat("z", 0);
+//            double xx = getDouble(sharedPref, "x", 0);
+//            double yy = getDouble(sharedPref, "y", 0);
+//            double zz = getDouble(sharedPref, "z", 0);
 
-            double euc = Math.sqrt(Math.pow(xx - x, 2) + Math.pow(yy - y, 2) + Math.pow(zz - z, 2));
+            Gson gson = new Gson();
+            String json = sharedPref.getString("Template", null);
+            Type type = new TypeToken<ArrayList<Double>>() {}.getType();
+            ArrayList<Double> template2 = gson.fromJson(json, type);
+            double templateDistance =getDouble(sharedPref,"DTW",0);
+            System.out.println("distance of T1: "+templateDistance);
+//            ///// calculation for time between samples
+//            long times = 0;
+//            for (int i = 0; i < time.size() - 1; i++) {
+//                times += time.get(i + 1) - time.get(i);
+//                System.out.println(time.get(i + 1) - time.get(i));
+//            }
+//            times /= time.size();
+//            System.out.println(times);
+//            ////////
+            double ratio = DTW(template2,template)/templateDistance;
+            System.out.println("dtw "+DTW(template2,template));
+            System.out.println("ratio:  "+ratio);
 
-
-            distance = 0;// D(prev, arrayx);
-            /// calculation fo time between samples
-            long times = 0;
-            for (int i = 0; i < time.size() - 1; i++) {
-                times += time.get(i + 1) - time.get(i);
-                System.out.println(time.get(i + 1) - time.get(i));
-            }
-            times /= time.size();
-            System.out.println(times);
             int i2 = i;
             int c = estimateCycleLength(samples);
-            if (name.equals(savedName) && 1 / (1 + euc) > 0.9) {
-                ((TextView) findViewById(R.id.speed)).setText("cycleLength" + c + "" + "\n" + i2 + "\n" + s + "\n" + x + "\n" + y + "\n" + z + "\n" + xx + "\n" + yy + "\n" + zz + "\n");
+            if (name.equals(savedName) && (ratio <= 1.1 && ratio >= 0.9)) {
+//                ((TextView) findViewById(R.id.speed)).setText("cycleLength" + c + "" + "\n" + i2 + "\n" + s + "\n" + x + "\n" + y + "\n" + z + "\n" + xx + "\n" + yy + "\n" + zz + "\n");
+                ((TextView) findViewById(R.id.speed)).setText("success");
             } else {
-                ((TextView) findViewById(R.id.speed)).
-                        setText("cycleLength" + c + "" + "\n" + i2 + "\n" + s + "\n" + x + "\n" + y + "\n" + z + "\n" + xx + "\n" + yy + "\n" + zz + "\n");
+//                ((TextView) findViewById(R.id.speed)).
+//                        setText("cycleLength" + c + "" + "\n" + i2 + "\n" + s + "\n" + x + "\n" + y + "\n" + z + "\n" + xx + "\n" + yy + "\n" + zz + "\n");
+                ((TextView) findViewById(R.id.speed)).setText("fail");
             }
 
             GraphView graph = (GraphView) findViewById(R.id.graph);
@@ -246,66 +254,6 @@ public class MainActivity extends Activity implements SensorEventListener {
         }
         return output;
     }
-
-
-    public double DTWDistance(float[] s, float[] t) {
-        double[][] DTW = new double[s.length][t.length];
-        DTW[0][0] = 0;
-
-        for (int i = 1; i < s.length; i++) {
-            DTW[i][0] = Math.abs(s[i] - t[0]) + DTW[i - 1][0];
-        }
-        for (int i = 1; i < t.length; i++) {
-            DTW[0][i] = Math.abs(s[0] - t[i]) + DTW[0][i - 1];
-        }
-        for (int i = 1; i < s.length; i++) {
-            for (int j = 1; j < t.length; j++) {
-                double cost = Math.abs(s[i] - t[j]);
-                DTW[i][j] = cost + Math.min(DTW[i - 1][j], Math.min(DTW[i][j - 1], DTW[i - 1][j - 1]));
-            }
-        }
-        float sum = 0;
-        int i = 0;
-        int j = 0;
-        double min;
-
-
-        while (i != s.length - 1 && j != t.length - 1) {
-            if (i == s.length - 1) {
-                while (j != t.length - 1) {
-                    j++;
-                    sum += DTW[i][j];
-                }
-                return sum;
-            } else if (j == t.length - 1) {
-                while (i != s.length - 1) {
-                    i++;
-                    sum += DTW[i][j];
-                }
-                return sum;
-
-            }
-            if (DTW[i + 1][j + 1] < DTW[i + 1][j] && DTW[i + 1][j + 1] < DTW[i][j + 1]) {
-                min = DTW[i + 1][j + 1];
-                i += 1;
-                j += 1;
-
-            } else if (DTW[i + 1][j] < DTW[i][j + 1] && DTW[i + 1][j] < DTW[i + 1][j + 1]) {
-                min = DTW[i + 1][j];
-                i += 1;
-            } else {
-
-                min = DTW[i][j + 1];
-                j += 1;
-            }
-
-            sum += min;
-
-
-        }
-        return sum;
-    }
-
 
     public static double DTW(ArrayList<Double> template,ArrayList<Double> sample) {
         Double[] s = template.toArray(new Double[template.size()])
@@ -518,7 +466,9 @@ public class MainActivity extends Activity implements SensorEventListener {
         indices.add(start);
         double min = 0;
         int index=0;
-        for(int i=0;i<((samples.size()/2)/length)-length;i++){
+//        System.out.println(((samples.size()/2)/length)-1);
+//        System.out.println(start);
+        for(int i=0;i<((samples.size()/2)/length)-2;i++){
             start-=length;
             index=start;
             min=samples.get(index);
@@ -534,7 +484,8 @@ public class MainActivity extends Activity implements SensorEventListener {
 
         Collections.reverse(indices);
         start = minAtCenter(samples,length);
-        for(int i=0;i<((samples.size()/2)/length)-length;i++){
+        for(int i=0;i<((samples.size()/2)/length)-2;i++){
+//            Log.v("tag","hi");
             start+=length;
             index=start;
             min=samples.get(index);
@@ -547,11 +498,12 @@ public class MainActivity extends Activity implements SensorEventListener {
             start=index;
             indices.add(index);
         }
+        System.out.println("starts indices "+indices);
         return indices;
 }
 
  public int minAtCenter(ArrayList<Double> samples,int length){
-        double min = 0;
+        double min = samples.get(samples.size()/2);
         int index=0;
      for(int i = (samples.size()/2)-length;i<(samples.size()/2)+length;i++){
             if (samples.get(i)<min){
@@ -559,38 +511,44 @@ public class MainActivity extends Activity implements SensorEventListener {
                 min = samples.get(i);
      }
         }
+//        System.out.println("INDEX OF MIN"+index);
         return index;
  }
 
 
 // remove unusual cycles
-public ArrayList<Integer> skipIrregularCycles(ArrayList<Double> samples, ArrayList<Integer> indices){
-    ArrayList<Double> newSamples = new ArrayList<Double>();
+public ArrayList<Double> skipIrregularCycles(ArrayList<Double> samples, ArrayList<Integer> indices){
     ArrayList<Double> averages = distances (samples,indices);
+    System.out.println("after first distances: "+ averages);
     double diffAverage = average(averages);
     //This function returns all the indices which are to be ommitted from further calculations
-    newSamples = removeFromSamples(samples, indices, averages, diffAverage);
-    indices = cycleStarts(newSamples);
-
-    return indices;
+    return removeFromSamples(samples, indices, averages, diffAverage);
 }
 
     public ArrayList<Double> distances(ArrayList<Double> samples, ArrayList<Integer> indices){
         ArrayList<Double> averages = new ArrayList<Double>();
         for(int index : indices){
+//            Log.v("tag", "entered loop");
+            if(index == indices.get(indices.size()-1))
+                break;
             ArrayList<Double> window0 = new ArrayList<Double>(samples.subList(index, indices.get(indices.indexOf(index)+1)));
             ArrayList<Double> differences = new ArrayList<Double>();
+//            Log.v("tag", "entered if");
             for(int _index : indices){
                 //We don't want to compare it to itself
-                if(_index==index)break;
-                else{
-                    ArrayList<Double> window1 = new ArrayList<Double>(samples.subList(_index, indices.get(indices.indexOf(_index)+1)));
+
+                if(!(_index==index) && !(_index == indices.get(indices.size()-1 ))) {
+
+                    ArrayList<Double> window1 = new ArrayList<Double>(samples.subList(_index, indices.get(indices.indexOf(_index) + 1)));
                     differences.add(DTW(window0, window1));
-                }
+            }
             }
             averages.add(average(differences));
         }
-      return averages;
+        if(averages.isEmpty()){
+            System.out.println("EMPTY");
+        }
+        return averages;
     }
 
 
@@ -605,25 +563,40 @@ public ArrayList<Integer> skipIrregularCycles(ArrayList<Double> samples, ArrayLi
     public ArrayList<Double> removeFromSamples(ArrayList<Double> samples, ArrayList<Integer> indices, ArrayList<Double> averages, double average){
         ArrayList<Integer> removedIndices = new ArrayList<Integer>();
         ArrayList<Integer> list = new ArrayList<Integer>();
-        for(int i=0;i<indices.size();i++){
-            if(averages.get(i)<average*0.85 || averages.get(i)>average*1.15){
+        for(int i=0;i<indices.size()-1;i++){
+            if(averages.get(i)<average*0.65 || averages.get(i)>average*1.35){
                 removedIndices.add(i);
             }
         }
-        for(int i=0;i<removedIndices.size();i++){
-            for(int j=indices.get(removedIndices.get(i));j<indices.get(removedIndices.get(i)+1);j++){
-                list.add(j);
+        if(removedIndices.size()>0){
+            for(int i=0;i<removedIndices.size();i++){
+                for(int j=indices.get(removedIndices.get(i));j<indices.get(removedIndices.get(i)+1);j++){
+                    list.add(j);
+                }
             }
+            Collections.sort(list,Collections.reverseOrder());
+            for(int i : list)
+                samples.remove(i);
+            indices = cycleStarts(samples);
+            averages = distances(samples, indices);
+            System.out.println("after samples removed"+averages);
+            return removeFromSamples(samples, indices, averages, average(averages));
+
         }
-        Collections.sort(list,Collections.reverseOrder());
-        for(int i : list)
-            samples.remove(i);
-        return samples;
+        else
+            return samples;
     }
 
 
-
-
+    public ArrayList<Double> cycle(ArrayList<Double> samples, ArrayList<Integer> indices){
+        ArrayList<Double> cycle = new ArrayList<Double>();
+        ArrayList<Double> averages = distances(samples,indices);
+        int minIndex = averages.indexOf(Collections.min(averages));
+        for(int i=indices.get(minIndex);i<indices.get(minIndex+1);i++){
+            cycle.add(samples.get(i));
+        }
+        return cycle;
+    }
 
 
 

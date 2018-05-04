@@ -27,6 +27,7 @@ dependencies {
     implementation project(':androidlibsvm-release')
     compile 'com.github.KalebKE:FSensor:v1.1.3'
     compile 'com.jjoe64:graphview:4.2.1'
+    compile 'com.google.code.gson:gson:2.8.3'
 
 }
 
