@@ -110,8 +110,7 @@ public class MainActivity extends Activity implements SensorEventListener {
             SharedPreferences.Editor editor = sharedPref.edit();
             editor.putString("name", name);
              putDouble(editor,"DTW",templateDistance);
-                Gson gson = new Gson();
-                String json = gson.toJson(Template);
+                String json = new Gson().toJson(Template);
                editor.putString("Template", json);
 //            putDouble(editor, "x", x);
 //            putDouble(editor, "y", y);
@@ -158,11 +157,11 @@ public class MainActivity extends Activity implements SensorEventListener {
             int c = estimateCycleLength(samples);
             if (name.equals(savedName) && (ratio <= 1.1 && ratio >= 0.9)) {
 //                ((TextView) findViewById(R.id.speed)).setText("cycleLength" + c + "" + "\n" + i2 + "\n" + s + "\n" + x + "\n" + y + "\n" + z + "\n" + xx + "\n" + yy + "\n" + zz + "\n");
-                ((TextView) findViewById(R.id.speed)).setText("success");
+                ((TextView) findViewById(R.id.speed)).setText("ratio:  "+ratio + "\n DTW "+DTW(template2,template) );
             } else {
 //                ((TextView) findViewById(R.id.speed)).
 //                        setText("cycleLength" + c + "" + "\n" + i2 + "\n" + s + "\n" + x + "\n" + y + "\n" + z + "\n" + xx + "\n" + yy + "\n" + zz + "\n");
-                ((TextView) findViewById(R.id.speed)).setText("fail");
+                ((TextView) findViewById(R.id.speed)).setText("ratio:  "+ratio + "\n DTW "+DTW(template2,template));
             }
 
             GraphView graph = (GraphView) findViewById(R.id.graph);
@@ -372,7 +371,7 @@ public class MainActivity extends Activity implements SensorEventListener {
 
     //          cycle length estimation and step detection
 // estimation of cycle length
-    public int estimateCycleLength(ArrayList<Double> samples) {
+    public static int estimateCycleLength(ArrayList<Double> samples) {
         int diff = 20; //window size
         ArrayList<Double> score = new ArrayList<Double>();  //for absolute distance between windows
         ArrayList<Double> baseline = new ArrayList<Double>();
@@ -399,7 +398,7 @@ public class MainActivity extends Activity implements SensorEventListener {
 
         //difference between adjacent elements
 
-            for (i = 0; i < minimas.size()-1; i += 2) {
+            for (int i = 0; i < minimas.size()-1; i += 2) {
                 differences.add(Math.abs(minimas.get(i) - minimas.get(i + 1)));
             }
 
@@ -414,13 +413,13 @@ public class MainActivity extends Activity implements SensorEventListener {
         double sum = 0;
         if (forwards) {
             //if moving forward
-            int currentStartingIndex = (samples.size() / 2) + (diff / 2) * nth;
+            int currentStartingIndex = (samples.size() / 2) - (diff / 2) + diff * nth;
             for (int i = 0; i < diff; i++) {
                 sum += Math.abs((baseline.get(i) - samples.get(currentStartingIndex + i)));
             }
         } else {
             //if moving backward
-            int currentStartingIndex = (samples.size() / 2) - diff * nth;
+            int currentStartingIndex = (samples.size() / 2) - (diff / 2) - diff * nth;
             for (int i = 0; i < diff; i++) {
                 sum += Math.abs((baseline.get(i) - samples.get(currentStartingIndex + i)));
             }
@@ -484,7 +483,7 @@ public class MainActivity extends Activity implements SensorEventListener {
 
         Collections.reverse(indices);
         start = minAtCenter(samples,length);
-        for(int i=0;i<((samples.size()/2)/length)-2;i++){
+        for(int i=0;i<((samples.size()/2)/length)-1;i++){
 //            Log.v("tag","hi");
             start+=length;
             index=start;
