@@ -104,8 +104,10 @@ public class MainActivity extends Activity implements SensorEventListener {
 //            System.out.println("starts indices: "+cycleStarts(samples));
             ArrayList<Double> newSamples = skipIrregularCycles(samples,cycleStarts(samples));
             double templateDistance = average(distances(newSamples,cycleStarts(newSamples)));
+            System.out.println(templateDistance);
             ArrayList<Double> Template = cycle(newSamples,cycleStarts(newSamples));
-            ((TextView) findViewById(R.id.speed)).setText("registered");
+            System.out.println(Template.size());
+            ((TextView) findViewById(R.id.speed)).setText("registered" +"\n"+Template.size()+"\n"+templateDistance );
             SharedPreferences sharedPref = getSharedPreferences("mypref", 0);
             SharedPreferences.Editor editor = sharedPref.edit();
             editor.putString("name", name);
@@ -128,6 +130,7 @@ public class MainActivity extends Activity implements SensorEventListener {
             z /= i;
             ArrayList<Double> newSamples = skipIrregularCycles(samples,cycleStarts(samples));
             ArrayList<Double> template = cycle(newSamples,cycleStarts(newSamples));
+            System.out.println(template.size());
 
             SharedPreferences sharedPref = getSharedPreferences("mypref", 0);
             String savedName = sharedPref.getString("name", "");
@@ -140,7 +143,7 @@ public class MainActivity extends Activity implements SensorEventListener {
             Type type = new TypeToken<ArrayList<Double>>() {}.getType();
             ArrayList<Double> template2 = gson.fromJson(json, type);
             double templateDistance =getDouble(sharedPref,"DTW",0);
-            System.out.println("distance of T1: "+templateDistance);
+//            System.out.println("distance of T1: "+templateDistance);
 //            ///// calculation for time between samples
 //            long times = 0;
 //            for (int i = 0; i < time.size() - 1; i++) {
@@ -152,17 +155,16 @@ public class MainActivity extends Activity implements SensorEventListener {
 //            ////////
             double ratio = DTW(template2,template)/templateDistance;
             System.out.println("dtw "+DTW(template2,template));
-            System.out.println("ratio:  "+ratio);
 
-            int i2 = i;
+
             int c = estimateCycleLength(samples);
             if (name.equals(savedName) && (ratio <= 1.1 && ratio >= 0.9)) {
 //                ((TextView) findViewById(R.id.speed)).setText("cycleLength" + c + "" + "\n" + i2 + "\n" + s + "\n" + x + "\n" + y + "\n" + z + "\n" + xx + "\n" + yy + "\n" + zz + "\n");
-                ((TextView) findViewById(R.id.speed)).setText("success");
+                ((TextView) findViewById(R.id.speed)).setText("ratio:  "+ratio +"\n"+template.size()+"\n"+DTW(template2,template) );
             } else {
 //                ((TextView) findViewById(R.id.speed)).
 //                        setText("cycleLength" + c + "" + "\n" + i2 + "\n" + s + "\n" + x + "\n" + y + "\n" + z + "\n" + xx + "\n" + yy + "\n" + zz + "\n");
-                ((TextView) findViewById(R.id.speed)).setText("fail");
+                ((TextView) findViewById(R.id.speed)).setText("ratio:  "+ratio +"\n"+template.size()+"\n"+ DTW(template2,template) );
             }
 
             GraphView graph = (GraphView) findViewById(R.id.graph);
@@ -399,7 +401,7 @@ public class MainActivity extends Activity implements SensorEventListener {
 
         //difference between adjacent elements
 
-            for (i = 0; i < minimas.size()-1; i += 2) {
+            for (int i = 0; i < minimas.size()-1; i += 2) {
                 differences.add(Math.abs(minimas.get(i) - minimas.get(i + 1)));
             }
 
@@ -414,13 +416,13 @@ public class MainActivity extends Activity implements SensorEventListener {
         double sum = 0;
         if (forwards) {
             //if moving forward
-            int currentStartingIndex = (samples.size() / 2) + (diff / 2) * nth;
+            int currentStartingIndex = (samples.size() / 2) - (diff / 2) + diff * nth;
             for (int i = 0; i < diff; i++) {
                 sum += Math.abs((baseline.get(i) - samples.get(currentStartingIndex + i)));
             }
         } else {
             //if moving backward
-            int currentStartingIndex = (samples.size() / 2) - diff * nth;
+            int currentStartingIndex = (samples.size() / 2) - (diff / 2) - diff * nth;
             for (int i = 0; i < diff; i++) {
                 sum += Math.abs((baseline.get(i) - samples.get(currentStartingIndex + i)));
             }
@@ -468,15 +470,23 @@ public class MainActivity extends Activity implements SensorEventListener {
         int index=0;
 //        System.out.println(((samples.size()/2)/length)-1);
 //        System.out.println(start);
-        for(int i=0;i<((samples.size()/2)/length)-2;i++){
+        for(int i=0;i<((samples.size()/2)/length);i++){
             start-=length;
             index=start;
-            min=samples.get(index);
+            try {
+                min = samples.get(index);
+            }catch(IndexOutOfBoundsException e){
+                break;
+            }
             for(int j= (int)(start-offset*length);j<start+offset*length;j++){
-                if (samples.get(j)<min){
-                    min=samples.get(j);
-                    index=j;
-                }
+                try{
+                    if (samples.get(j)<min){
+                        min=samples.get(j);
+                        index=j;
+                    }
+                }catch(IndexOutOfBoundsException e){
+                break;
+            }
             }
             start=index;
             indices.add(index);
@@ -484,16 +494,24 @@ public class MainActivity extends Activity implements SensorEventListener {
 
         Collections.reverse(indices);
         start = minAtCenter(samples,length);
-        for(int i=0;i<((samples.size()/2)/length)-2;i++){
+        for(int i=0;i<((samples.size()/2)/length);i++){
 //            Log.v("tag","hi");
             start+=length;
             index=start;
-            min=samples.get(index);
+            try {
+                min = samples.get(index);
+            }catch(IndexOutOfBoundsException e){
+                break;
+            }
             for(int j= (int)(start-offset*length);j<start+offset*length;j++){
-                if (samples.get(j)<min){
-                    min=samples.get(j);
-                     index=j;
-                }
+                try{
+                    if (samples.get(j)<min){
+                        min=samples.get(j);
+                        index=j;
+                    }
+                }catch(IndexOutOfBoundsException e){
+                break;
+            }
             }
             start=index;
             indices.add(index);
@@ -564,7 +582,7 @@ public ArrayList<Double> skipIrregularCycles(ArrayList<Double> samples, ArrayLis
         ArrayList<Integer> removedIndices = new ArrayList<Integer>();
         ArrayList<Integer> list = new ArrayList<Integer>();
         for(int i=0;i<indices.size()-1;i++){
-            if(averages.get(i)<average*0.65 || averages.get(i)>average*1.35){
+            if(averages.get(i)<average*0.8 || averages.get(i)>average*1.2){
                 removedIndices.add(i);
             }
         }
@@ -580,6 +598,8 @@ public ArrayList<Double> skipIrregularCycles(ArrayList<Double> samples, ArrayLis
             indices = cycleStarts(samples);
             averages = distances(samples, indices);
             System.out.println("after samples removed"+averages);
+            System.out.println("cycle starts"+indices);
+
             return removeFromSamples(samples, indices, averages, average(averages));
 
         }
@@ -702,7 +722,7 @@ public ArrayList<Double> skipIrregularCycles(ArrayList<Double> samples, ArrayLis
                 public void run() {
                     super.run();
                     try {
-                        sleep(10000);
+                        sleep(25000);
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
@@ -764,7 +784,7 @@ public ArrayList<Double> skipIrregularCycles(ArrayList<Double> samples, ArrayLis
             public void run() {
                 super.run();
                 try {
-                    sleep(10000);
+                    sleep(15000);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
