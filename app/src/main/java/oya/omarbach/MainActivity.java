@@ -112,8 +112,7 @@ public class MainActivity extends Activity implements SensorEventListener {
             SharedPreferences.Editor editor = sharedPref.edit();
             editor.putString("name", name);
              putDouble(editor,"DTW",templateDistance);
-                Gson gson = new Gson();
-                String json = gson.toJson(Template);
+                String json = new Gson().toJson(Template);
                editor.putString("Template", json);
 //            putDouble(editor, "x", x);
 //            putDouble(editor, "y", y);
@@ -165,6 +164,7 @@ public class MainActivity extends Activity implements SensorEventListener {
 //                ((TextView) findViewById(R.id.speed)).
 //                        setText("cycleLength" + c + "" + "\n" + i2 + "\n" + s + "\n" + x + "\n" + y + "\n" + z + "\n" + xx + "\n" + yy + "\n" + zz + "\n");
                 ((TextView) findViewById(R.id.speed)).setText("ratio:  "+ratio +"\n"+template.size()+"\n"+ DTW(template2,template) );
+
             }
 
             GraphView graph = (GraphView) findViewById(R.id.graph);
@@ -374,7 +374,7 @@ public class MainActivity extends Activity implements SensorEventListener {
 
     //          cycle length estimation and step detection
 // estimation of cycle length
-    public int estimateCycleLength(ArrayList<Double> samples) {
+    public static int estimateCycleLength(ArrayList<Double> samples) {
         int diff = 20; //window size
         ArrayList<Double> score = new ArrayList<Double>();  //for absolute distance between windows
         ArrayList<Double> baseline = new ArrayList<Double>();
@@ -495,6 +495,7 @@ public class MainActivity extends Activity implements SensorEventListener {
         Collections.reverse(indices);
         start = minAtCenter(samples,length);
         for(int i=0;i<((samples.size()/2)/length);i++){
+
 //            Log.v("tag","hi");
             start+=length;
             index=start;
