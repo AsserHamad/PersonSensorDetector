@@ -18,9 +18,10 @@
         android:textSize="14sp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.505"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/start"
-        app:layout_constraintVertical_bias="0.0" />
+        app:layout_constraintVertical_bias="0.523" />
 
     <Button
         android:id="@+id/start"
@@ -83,17 +84,63 @@
 
 
     <com.jjoe64.graphview.GraphView
-        android:id="@+id/graph"
-        android:layout_width="match_parent"
-        android:layout_height="184dp"
+        android:id="@+id/l2"
+        android:layout_width="172dp"
+        android:layout_height="139dp"
         android:layout_marginBottom="8dp"
         android:layout_marginEnd="8dp"
         android:layout_marginStart="8dp"
         android:layout_marginTop="8dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintHorizontal_bias="0.958"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="@+id/speed"
         app:layout_constraintVertical_bias="1.0" />
+
+    <com.jjoe64.graphview.GraphView
+        android:id="@+id/l1"
+        android:layout_width="169dp"
+        android:layout_height="139dp"
+        android:layout_marginBottom="8dp"
+        android:layout_marginEnd="8dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.041"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/speed"
+        app:layout_constraintVertical_bias="1.0" />
+
+    <com.jjoe64.graphview.GraphView
+        android:id="@+id/r2"
+        android:layout_width="173dp"
+        android:layout_height="145dp"
+        android:layout_marginBottom="8dp"
+        android:layout_marginEnd="8dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.958"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/speed"
+        app:layout_constraintVertical_bias="0.465" />
+
+    <com.jjoe64.graphview.GraphView
+        android:id="@+id/r1"
+        android:layout_width="173dp"
+        android:layout_height="145dp"
+        android:layout_marginBottom="8dp"
+        android:layout_marginEnd="8dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.041"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/speed"
+        app:layout_constraintVertical_bias="0.465" />
+
 </android.support.constraint.ConstraintLayout>
